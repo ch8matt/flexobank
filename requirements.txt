@@ -1,7 +1,8 @@
-datetime
-yfinance
-ta
-pandas
-matplotlib
 analysis
+datetime
+matplotlib
+pandas
+ta
 tk
+toml
+yfinance

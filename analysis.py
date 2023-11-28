@@ -1,5 +1,3 @@
-# Ce fichier effectue l'analyse technique des tickers.
-
 from tickers import get_tickers
 from datetime import datetime, timedelta
 
