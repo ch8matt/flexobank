@@ -1,3 +1,7 @@
+datetime
 yfinance
 ta
 pandas
+matplotlib
+analysis
+tk
