@@ -103,8 +103,8 @@ class TradeDecisionApp(QDialog):
         layout = QVBoxLayout(self)
 
         # Table for trades
-        self.table = QTableWidget(len(self.potential_trades), 5, self)  # Added one more column for the "Processed" status
-        self.table.setHorizontalHeaderLabels(['Ticker', 'Close', 'Analyse', 'Confirm', 'Processed'])  # Added "Processed" column
+        self.table = QTableWidget(len(self.potential_trades), 4, self)  # Added one more column for the "Processed" status
+        self.table.setHorizontalHeaderLabels(['Ticker', 'Close', 'Analyse', 'Confirm'])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
 
@@ -114,7 +114,6 @@ class TradeDecisionApp(QDialog):
             self.table.setItem(i, 2, QTableWidgetItem(trade['action']))
             chkBox = QCheckBox(self)
             self.table.setCellWidget(i, 3, chkBox)
-            self.table.setItem(i, 4, QTableWidgetItem("Not Processed"))  # Initial value for "Processed" column
 
         layout.addWidget(self.table)
 
@@ -142,14 +141,14 @@ class TradeDecisionApp(QDialog):
                 'Ticker': ticker,
                 'Close': close,
                 'Analyse': action,
-                'Processed': processed,
+                'Status': processed,
             }
 
             data_to_save.append(data_entry)
 
         # Save the data to the CSV file
         with open('shared_data.csv', 'a', newline='') as csvfile:
-            fieldnames = ['Timestamp', 'Ticker', 'Close', 'Analyse', 'Processed']  # Adjust these column names accordingly
+            fieldnames = ['Timestamp', 'Ticker', 'Close', 'Analyse', 'Status']  # Adjust these column names accordingly
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             # Add a header row if the file is empty
