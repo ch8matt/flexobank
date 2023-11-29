@@ -5,6 +5,7 @@ from retrieve import continuous_analysis, clear_database, create_tables
 from analysis import calculate_technical_indicators
 from datetime import datetime
 import csv
+import os
 
 class AnalysisThread(QThread):
     def run(self):
@@ -18,25 +19,53 @@ class StockAnalysisApp(QWidget):
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
-        # Analysis Button
-        self.analysis_button = QPushButton('Start Analysis', self)
-        self.analysis_button.clicked.connect(self.start_analysis)
-        self.layout.addWidget(self.analysis_button)
+        # Start/Stop Session Button
+        self.start_stop_button = QPushButton('Start Session', self)
+        self.start_stop_button.clicked.connect(self.toggle_session)
+        self.layout.addWidget(self.start_stop_button)
 
         # Button to open TradeDecisionApp
         self.trade_decision_button = QPushButton('Open Trade Decisions', self)
+        self.trade_decision_button.setEnabled(False)
         self.trade_decision_button.clicked.connect(self.open_trade_decision)
         self.layout.addWidget(self.trade_decision_button)
+
+        # Button to delete the CSV file
+        self.delete_csv_button = QPushButton('Delete CSV', self)
+        self.delete_csv_button.clicked.connect(self.delete_csv)
+        self.layout.addWidget(self.delete_csv_button)
 
         self.setWindowTitle('Stock Analysis App')
         self.resize(100, 100)
         self.centerWindow()
 
-    def start_analysis(self):
-        clear_database()  # Clear the database
-        create_tables()   # Create necessary tables
-        self.analysis_thread = AnalysisThread()
-        self.analysis_thread.start()
+        self.analysis_thread = None  # To hold the reference to the analysis thread
+        self.analysis_running = False  # Flag to track analysis state
+        self.trade_decision_window = None  # To hold the reference to the TradeDecisionApp window
+
+    def toggle_session(self):
+        if not self.analysis_running:
+            clear_database()  # Clear the database
+            create_tables()   # Create necessary tables
+            self.analysis_thread = AnalysisThread()
+            self.analysis_thread.started.connect(self.on_analysis_started)
+            self.analysis_thread.finished.connect(self.on_analysis_finished)
+            self.analysis_thread.start()
+            self.start_stop_button.setText('Stop Session')
+        else:
+            self.analysis_thread.terminate()  # Terminate the analysis thread
+            self.analysis_thread.wait()  # Wait for the thread to finish
+            self.start_stop_button.setText('Start Session')
+            if self.trade_decision_window:
+                self.trade_decision_window.close()
+
+    def on_analysis_started(self):
+        self.analysis_running = True
+        self.trade_decision_button.setEnabled(True)
+
+    def on_analysis_finished(self):
+        self.analysis_running = False
+        self.trade_decision_button.setEnabled(False)
 
     def open_trade_decision(self):
         # Open TradeDecisionApp in a new window
@@ -49,41 +78,13 @@ class StockAnalysisApp(QWidget):
         qr.moveCenter(cp)
         self.move(qr.topLeft())
 
-class TradeDecisionApp(QDialog):
-    def __init__(self, potential_trades):
-        super().__init__()
-        self.potential_trades = potential_trades if potential_trades else self.get_potential_trades()
-        self.initUI()
-        self.setModal(True)
-
-    def get_potential_trades(self):
-        # Get potential trades from calculate_technical_indicators
-        return calculate_technical_indicators()
-
-    def initUI(self):
-        self.setWindowTitle('Trade Decisions')
-        self.resize(650, 400)
-        layout = QVBoxLayout(self)
-
-        # Table for trades
-        self.table = QTableWidget(len(self.potential_trades), 4, self)
-        self.table.setHorizontalHeaderLabels(['Ticker', 'Close', 'Analyse', 'Confirm'])
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeToContents)
-
-        for i, trade in enumerate(self.potential_trades):
-            self.table.setItem(i, 0, QTableWidgetItem(trade['ticker']))
-            self.table.setItem(i, 1, QTableWidgetItem(str(trade['Close'])))
-            self.table.setItem(i, 2, QTableWidgetItem(trade['action']))
-            chkBox = QCheckBox(self)
-            self.table.setCellWidget(i, 3, chkBox)
-
-        layout.addWidget(self.table)
-
-        # Submit button
-        btnSubmit = QPushButton('Submit Decisions', self)
-        btnSubmit.clicked.connect(self.onSubmit)
-        layout.addWidget(btnSubmit)
+    def delete_csv(self):
+        # Delete the CSV file if it exists
+        if os.path.exists('shared_data.csv'):
+            os.remove('shared_data.csv')
+            print("CSV file deleted.")
+        else:
+            print("CSV file does not exist.")
 
 class TradeDecisionApp(QDialog):
     def __init__(self, potential_trades):
