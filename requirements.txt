@@ -2,6 +2,7 @@ analysis
 datetime
 matplotlib
 pandas
+pytz
 ta
 tk
 toml

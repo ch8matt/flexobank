@@ -1,113 +1,87 @@
-from tickers import get_tickers
-from datetime import datetime, timedelta
-
-import ta
-import yfinance as yf
+import sqlite3
 import pandas as pd
-from datetime import datetime, timedelta
+import ta
+import tkinter as tk
+from tkinter import messagebox
+from datetime import datetime
 
-def get_stock_data(ticker, start_date=None, end_date=None):
-    if start_date is None:
-        start_date = datetime(datetime.now().year, 1, 1)
-    if end_date is None:
-        end_date = datetime.now()
+def connect_to_db():
+    """Establishes a connection to the SQLite database."""
+    return sqlite3.connect('stock_data.db')
 
-    if isinstance(start_date, str):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d')
-    if isinstance(end_date, str):
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+def calculate_technical_indicators():
+    conn = connect_to_db()
+    cursor = conn.cursor()
+    
+    print("Calculating various technical indicators for stock data.")
 
     all_data = pd.DataFrame()
 
-    # Définir la date de début pour les données à la minute (au plus tôt 30 jours avant la date actuelle)
-    minute_data_start_date = max(end_date - timedelta(days=29), start_date)
-
-    # Récupérer les données quotidiennes pour la période avant les 30 derniers jours, si nécessaire
-    if start_date < minute_data_start_date:
-        try:
-            daily_data = yf.download(ticker, start=start_date, end=minute_data_start_date, interval='1d')
-            all_data = pd.concat([all_data, daily_data])
-        except Exception as e:
-            print(f"Error retrieving daily data for {ticker} from {start_date} to {minute_data_start_date}: {e}")
-
-    # Récupérer les données à la minute pour les 30 derniers jours
-    current_date = minute_data_start_date
-    while current_date < end_date:
-        period_end_date = min(current_date + timedelta(days=7), end_date)
-        try:
-            minute_data = yf.download(ticker, start=current_date, end=period_end_date, interval='1m')
-            if not minute_data.empty:
-                all_data = pd.concat([all_data, minute_data])
-        except Exception as e:
-            print(f"Error retrieving minute data for {ticker} from {current_date} to {period_end_date}: {e}")
-        current_date = period_end_date
-
-    return all_data
-
-# Fonction pour calculer les indicateurs techniques
-def calculate_technical_indicators(data):
-    # Indicateurs de tendance
-    data['SMA_50'] = ta.trend.sma_indicator(data['Close'], window=50)
-    data['EMA_50'] = ta.trend.ema_indicator(data['Close'], window=50)
-    
-    # Indicateurs de momentum
-    data['RSI_14'] = ta.momentum.rsi(data['Close'], window=14)
-    
-    # Indicateurs de volatilité
-    bollinger = ta.volatility.BollingerBands(data['Close'], window=20, window_dev=2)
-    data['Bollinger_Mavg'] = bollinger.bollinger_mavg()
-    data['Bollinger_hband'] = bollinger.bollinger_hband()
-    data['Bollinger_lband'] = bollinger.bollinger_lband()
-    
-    # Indicateurs de volume
-    data['On-Balance Volume'] = ta.volume.on_balance_volume(data['Close'], data['Volume'])
-    
-    # Indicateurs de tendance - MACD
-    macd = ta.trend.MACD(data['Close'])
-    data['MACD_line'] = macd.macd()
-    data['Signal_line'] = macd.macd_signal()
-    data['MACD_diff'] = macd.macd_diff()
-    
-    return data
-
-def analyze_tickers():
-    """Analyse les tickers et sélectionne ceux avec le plus de potentiel."""
-    tickers = get_tickers()
-    potential_stocks = []
+    cursor.execute("SELECT DISTINCT ticker FROM minute_data")
+    tickers = cursor.fetchall()
     
     for ticker in tickers:
-        print(f"Analyzing {ticker}...")
-        data = get_stock_data(ticker)
-        data_with_indicators = calculate_technical_indicators(data)
-        
-        # Conditions pour déterminer si un ticker a du potentiel
-        if data_with_indicators['RSI_14'].iloc[-1] < 30:
-            potential_stocks.append((ticker, 'RSI indicates potential underpricing'))
-        if data_with_indicators['MACD_line'].iloc[-1] > data_with_indicators['Signal_line'].iloc[-1]:
-            potential_stocks.append((ticker, 'MACD bullish crossover'))
-        if data_with_indicators['Close'].iloc[-1] < data_with_indicators['Bollinger_lband'].iloc[-1]:
-            potential_stocks.append((ticker, 'Price near lower Bollinger Band'))
-        if data_with_indicators['Close'].iloc[-1] > data_with_indicators['EMA_50'].iloc[-1]:
-            potential_stocks.append((ticker, 'Price above EMA 50, potential uptrend'))
+        data = pd.read_sql_query(f"SELECT date, close, volume FROM minute_data WHERE ticker='{ticker[0]}' ORDER BY date DESC", conn)
 
-    return potential_stocks
+        if not data.empty:
+            data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d %H:%M:%S')
 
-# Fonction pour calculer les indicateurs techniques pour plusieurs actions
-def calculate_indicators_for_multiple_stocks(tickers):
-    all_data = {}
+            # Calculate technical indicators
+            data['SMA_50'] = ta.trend.sma_indicator(data['close'], window=50)
+            data['EMA_50'] = ta.trend.ema_indicator(data['close'], window=50)
+            data['RSI_14'] = ta.momentum.rsi(data['close'], window=14)
+            bollinger = ta.volatility.BollingerBands(data['close'], window=20, window_dev=2)
+            data['Bollinger_Mavg'] = bollinger.bollinger_mavg()
+            data['Bollinger_hband'] = bollinger.bollinger_hband()
+            data['Bollinger_lband'] = bollinger.bollinger_lband()
+            data['On-Balance volume'] = ta.volume.on_balance_volume(data['close'], data['volume'])
+            macd = ta.trend.MACD(data['close'])
+            data['MACD_line'] = macd.macd()
+            data['Signal_line'] = macd.macd_signal()
+            data['MACD_diff'] = macd.macd_diff()
 
-    for ticker in tickers:
-        # Récupérer les données financières
-        stock_data = get_stock_data(ticker)
+            latest_data = data.iloc[0]
 
-        # Calculer les indicateurs techniques
-        stock_data_with_indicators = calculate_technical_indicators(stock_data)
+            buy_condition = (latest_data['close'] > latest_data['SMA_50']) and \
+                            (latest_data['close'] > latest_data['EMA_50']) and \
+                            (latest_data['MACD_line'] > latest_data['Signal_line']) and \
+                            (latest_data['RSI_14'] < 30)
 
-        # Stocker les données dans un dictionnaire
-        all_data[ticker] = stock_data_with_indicators
+            sell_condition = (latest_data['close'] < latest_data['SMA_50']) and \
+                            (latest_data['close'] < latest_data['EMA_50']) and \
+                            (latest_data['MACD_line'] < latest_data['Signal_line']) and \
+                            (latest_data['RSI_14'] > 70)
 
-    return all_data
+            if buy_condition or sell_condition:
+                action = 'Buy' if buy_condition else 'Sell'
+                user_decision = ask_user_decision(ticker[0], latest_data['close'], latest_data['date'], action)
+                trade_action = action if user_decision else 'No'
+                trade_reason = 'Buy - Above SMA_50 & RSI < 30' if buy_condition else 'Sell - Below SMA_50 & RSI > 70'
+            else:
+                trade_action = 'No'
+                trade_reason = 'Not recommended to trade'
 
-if __name__ == "__main__":
-    # Exemple d'utilisation de la fonction d'analyse
-    print(analyze_tickers())
+            new_row = pd.DataFrame({
+                'Ticker': [ticker[0]],
+                'Date': [datetime.now()],
+                'Close': [latest_data['close']],
+                'Trade_Action': [trade_action],
+                'Trade_Reason': [trade_reason]
+            })
+
+            all_data = pd.concat([all_data, new_row], ignore_index=True)
+
+    all_data.to_csv('shared_data.csv', mode='a', index=False)
+    print("Saved all data to shared_data.csv")
+
+    conn.close()
+
+def ask_user_decision(ticker, close, date, action):
+    root = tk.Tk()
+    root.withdraw()  # hide the main window
+    decision = messagebox.askyesno("Trade Decision", f"{action} signal for {ticker} at {close} on {date}. Execute trade?")
+    root.destroy()  # close the Tkinter root window
+    return decision
+
+# Call the function
+calculate_technical_indicators()
