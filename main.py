@@ -1,6 +1,9 @@
-from retrieve import clear_database, create_tables, continuous_analysis
+import sys
+from PyQt5.QtWidgets import QApplication
+from interface import StockAnalysisApp
 
-# Initialisation
-clear_database()  # Clear the database
-create_tables()
-continuous_analysis()
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    main_window = StockAnalysisApp()
+    main_window.show()
+    sys.exit(app.exec_())

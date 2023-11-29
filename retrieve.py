@@ -5,7 +5,6 @@ import pandas as pd
 import time 
 
 from tickers import get_tickers
-from analysis import calculate_technical_indicators
 
 def connect_to_db():
     """Établit une connexion à la base de données SQLite."""
@@ -67,13 +66,13 @@ def get_daily_data(ticker, start_date, end_date):
         if not data.empty:
             conn = connect_to_db()
             data.reset_index(inplace=True)
+            data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d %H:%M:%S')  # Format the date
             data = data.drop(columns=['Adj Close'])  # Drop the Adj Close column
             data['ticker'] = ticker
             data.to_sql('daily_data', conn, if_exists='append', index=False)
             conn.close()
     except Exception as e:
         print(f"Error retrieving daily data for {ticker}: {e}")
-
 
 def get_minute_data(ticker, start_date, end_date):
     """Retrieve minute-level stock data in chunks of 7 days."""
@@ -97,6 +96,14 @@ def get_minute_data(ticker, start_date, end_date):
     if all_minute_data:
         conn = connect_to_db()
         concatenated_data = pd.concat(all_minute_data, ignore_index=True)
+
+        # Reset the index to convert the date index into a column
+        concatenated_data.reset_index(inplace=True)
+        concatenated_data.rename(columns={'index': 'Date'}, inplace=True)
+
+        # Now format the 'Date' column
+        concatenated_data['Date'] = pd.to_datetime(concatenated_data['Date']).dt.strftime('%Y-%m-%d %H:%M:%S')
+
         concatenated_data['ticker'] = ticker
         concatenated_data.to_sql('minute_data', conn, if_exists='append', index=False)
         conn.close()
@@ -119,6 +126,5 @@ def continuous_analysis():
         current_time = datetime.now()
         for ticker in tickers:
             get_minute_data(ticker, current_time - timedelta(minutes=45), current_time)
-        calculate_technical_indicators()
         time.sleep(60)
 
