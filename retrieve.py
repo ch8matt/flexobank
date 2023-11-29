@@ -12,11 +12,20 @@ def connect_to_db():
     return sqlite3.connect('stock_data.db')
 
 def clear_database():
-    """Clears all data from the database."""
+    """Clears all data from the database if tables exist."""
     conn = connect_to_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM daily_data")
-    cursor.execute("DELETE FROM minute_data")
+
+    # Check if 'daily_data' table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='daily_data'")
+    if cursor.fetchone():
+        cursor.execute("DELETE FROM daily_data")
+    
+    # Check if 'minute_data' table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='minute_data'")
+    if cursor.fetchone():
+        cursor.execute("DELETE FROM minute_data")
+
     conn.commit()
     conn.close()
 
