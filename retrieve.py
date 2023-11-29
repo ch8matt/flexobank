@@ -105,7 +105,10 @@ def get_minute_data(ticker, start_date, end_date):
         concatenated_data['Date'] = pd.to_datetime(concatenated_data['Date']).dt.strftime('%Y-%m-%d %H:%M:%S')
 
         concatenated_data['ticker'] = ticker
-        concatenated_data.to_sql('minute_data', conn, if_exists='append', index=False)
+        try:
+            concatenated_data.to_sql('minute_data', conn, if_exists='append', index=False)
+        except sqlite3.IntegrityError:
+            concatenated_data.to_sql('minute_data', conn, if_exists='replace', index=False)
         conn.close()
 
 
@@ -126,5 +129,4 @@ def continuous_analysis():
         current_time = datetime.now()
         for ticker in tickers:
             get_minute_data(ticker, current_time - timedelta(minutes=45), current_time)
-        time.sleep(60)
-
+        time.sleep(10)

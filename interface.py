@@ -159,7 +159,8 @@ class TradeDecisionApp(QDialog):
             # Write the data to the CSV file
             for data_entry in data_to_save:
                 writer.writerow(data_entry)
-
+        print("The trade data has been happened shared_data.csv")
+        
         # Close the dialog
         self.close()
 
