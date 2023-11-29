@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 import ta
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk
 from datetime import datetime
 
 def connect_to_db():
@@ -40,31 +40,41 @@ def calculate_technical_indicators():
             data['Signal_line'] = macd.macd_signal()
             data['MACD_diff'] = macd.macd_diff()
 
-            latest_data = data.iloc[0]
+            potential_stocks = []
 
-            buy_condition = (latest_data['close'] > latest_data['SMA_50']) and \
-                            (latest_data['close'] > latest_data['EMA_50']) and \
-                            (latest_data['MACD_line'] > latest_data['Signal_line']) and \
-                            (latest_data['RSI_14'] < 30)
+            # Bullish signals
+            if data['RSI_14'].iloc[-1] < 30:
+                potential_stocks.append((ticker[0], 'RSI indicates potential underpricing (Bullish)'))
+            if data['MACD_line'].iloc[-1] > data['Signal_line'].iloc[-1]:
+                potential_stocks.append((ticker[0], 'MACD bullish crossover (Bullish)'))
+            if data['close'].iloc[-1] < data['Bollinger_lband'].iloc[-1]:
+                potential_stocks.append((ticker[0], 'Price near lower Bollinger Band (Bullish)'))
+            if data['close'].iloc[-1] > data['EMA_50'].iloc[-1]:
+                potential_stocks.append((ticker[0], 'Price above EMA 50, potential uptrend (Bullish)'))
 
-            sell_condition = (latest_data['close'] < latest_data['SMA_50']) and \
-                            (latest_data['close'] < latest_data['EMA_50']) and \
-                            (latest_data['MACD_line'] < latest_data['Signal_line']) and \
-                            (latest_data['RSI_14'] > 70)
+            # Bearish signals
+            if data['RSI_14'].iloc[-1] > 70:
+                potential_stocks.append((ticker[0], 'RSI indicates potential overpricing (Bearish)'))
+            if data['MACD_line'].iloc[-1] < data['Signal_line'].iloc[-1]:
+                potential_stocks.append((ticker[0], 'MACD bearish crossover (Bearish)'))
+            if data['close'].iloc[-1] > data['Bollinger_hband'].iloc[-1]:
+                potential_stocks.append((ticker[0], 'Price above upper Bollinger Band (Bearish)'))
 
-            if buy_condition or sell_condition:
-                action = 'Buy' if buy_condition else 'Sell'
-                user_decision = ask_user_decision(ticker[0], latest_data['close'], latest_data['date'], action)
-                trade_action = action if user_decision else 'No'
-                trade_reason = 'Buy - Above SMA_50 & RSI < 30' if buy_condition else 'Sell - Below SMA_50 & RSI > 70'
+            if potential_stocks:
+                for stock, reason in potential_stocks:
+                    user_decision = ask_user_decision(stock, data['close'].iloc[-1], reason)
+                    trade_action = 'Sell' if 'Bearish' in reason else 'Buy'
+                    trade_action = trade_action if user_decision else 'No'
+                    trade_reason = reason
             else:
+                # No clear signal
                 trade_action = 'No'
-                trade_reason = 'Not recommended to trade'
+                trade_reason = 'No clear bullish or bearish signal'
 
             new_row = pd.DataFrame({
                 'Ticker': [ticker[0]],
                 'Date': [datetime.now()],
-                'Close': [latest_data['close']],
+                'Close': [data['close'].iloc[-1]],
                 'Trade_Action': [trade_action],
                 'Trade_Reason': [trade_reason]
             })
@@ -76,12 +86,29 @@ def calculate_technical_indicators():
 
     conn.close()
 
-def ask_user_decision(ticker, close, date, action):
-    root = tk.Tk()
-    root.withdraw()  # hide the main window
-    decision = messagebox.askyesno("Trade Decision", f"{action} signal for {ticker} at {close} on {date}. Execute trade?")
-    root.destroy()  # close the Tkinter root window
-    return decision
+def ask_user_decision(ticker, close, action):
+    def on_confirm():
+        decision.set(True)
+        root.destroy()
 
-# Call the function
-calculate_technical_indicators()
+    def on_cancel():
+        decision.set(False)
+        root.destroy()
+
+    root = tk.Tk()
+    root.title("Trade Decision")
+    decision = tk.BooleanVar()
+
+    frame = ttk.Frame(root, padding="10")
+    frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+    ttk.Label(frame, text=f"Ticker: {ticker}").grid(row=0, column=0, sticky=tk.W)
+    ttk.Label(frame, text=f"Close Price: {close}").grid(row=1, column=0, sticky=tk.W)
+    ttk.Label(frame, text=f"Analysis: {action}").grid(row=2, column=0, sticky=tk.W)
+    ttk.Label(frame, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").grid(row=3, column=0, sticky=tk.W)
+
+    ttk.Button(frame, text="Confirm", command=on_confirm).grid(row=4, column=0, sticky=tk.W)
+    ttk.Button(frame, text="Cancel", command=on_cancel).grid(row=4, column=1, sticky=tk.W)
+
+    root.mainloop()
+    return decision.get()
