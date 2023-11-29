@@ -1,41 +1,13 @@
 import sqlite3
 import pandas as pd
 import ta
-import tkinter as tk
-from tkinter import ttk
 from datetime import datetime
+
+from interface import ask_user_decisions
 
 def connect_to_db():
     """Establishes a connection to the SQLite database."""
     return sqlite3.connect('stock_data.db')
-
-def ask_user_decisions(potential_trades):
-    def on_confirm():
-        for ticker in decisions:
-            decisions[ticker] = decision_vars[ticker].get()
-        root.quit()  # Quit the main loop
-        root.destroy()  # Destroy the window
-
-    root = tk.Tk()
-    root.title("Trade Decisions")
-    decisions = {trade['ticker']: False for trade in potential_trades}
-    decision_vars = {}
-
-    frame = ttk.Frame(root, padding="10")
-    frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-
-    for i, trade in enumerate(potential_trades):
-        decision_vars[trade['ticker']] = tk.BooleanVar(value=False)  # Initialize as opted out
-        ttk.Label(frame, text=f"Ticker: {trade['ticker']}").grid(row=i, column=0, sticky=tk.W)
-        ttk.Label(frame, text=f"Close Price: {trade['close']}").grid(row=i, column=1, sticky=tk.W)
-        ttk.Label(frame, text=f"Analysis: {trade['action']}").grid(row=i, column=2, sticky=tk.W)
-        ttk.Checkbutton(frame, text="Confirm Trade", variable=decision_vars[trade['ticker']]).grid(row=i, column=3, sticky=tk.W)
-
-    ttk.Button(frame, text="Submit Decisions", command=on_confirm).grid(row=len(potential_trades) + 1, column=0, sticky=tk.W)
-
-    root.mainloop()
-    return decisions
-
 
 def calculate_technical_indicators():
     conn = connect_to_db()
@@ -85,16 +57,16 @@ def calculate_technical_indicators():
 
     # Ask user decisions for all potential trades at once
     user_decisions = ask_user_decisions(potential_trades)
-
+    
     # Process user decisions
-    for trade in potential_trades:
-        ticker = trade['ticker']
+    for i, trade in enumerate(potential_trades):
+        unique_key = f"{trade['ticker']}_{i}"  # Construct the unique key
         trade_action = 'Sell' if 'Bearish' in trade['action'] else 'Buy'
-        trade_action = trade_action if user_decisions[ticker] else 'No'
+        trade_action = trade_action if user_decisions.get(unique_key, False) else 'No'
         trade_reason = trade['action']
 
         new_row = pd.DataFrame({
-            'Ticker': [ticker],
+            'Ticker': [trade['ticker']],
             'Date': [datetime.now()],
             'Close': [trade['close']],
             'Trade_Action': [trade_action],
@@ -104,7 +76,7 @@ def calculate_technical_indicators():
         all_data = pd.concat([all_data, new_row], ignore_index=True)
 
     all_data.to_csv('shared_data.csv', mode='a', index=False)
-    print("Saved all data to shared_data.csv")
+    print("Saved all trade information to shared_data.csv")
 
     conn.close()
 

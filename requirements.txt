@@ -2,8 +2,8 @@ analysis
 datetime
 matplotlib
 pandas
+pyqt5
 pytz
 ta
-tk
 toml
 yfinance

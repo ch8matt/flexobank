@@ -118,7 +118,7 @@ def continuous_analysis():
     while True:
         current_time = datetime.now()
         for ticker in tickers:
-            get_minute_data(ticker, current_time - timedelta(days=1), current_time)
+            get_minute_data(ticker, current_time - timedelta(minutes=45), current_time)
         calculate_technical_indicators()
         time.sleep(60)
 
