@@ -129,4 +129,4 @@ def continuous_analysis():
         current_time = datetime.now()
         for ticker in tickers:
             get_minute_data(ticker, current_time - timedelta(minutes=45), current_time)
-        time.sleep(10)
+        time.sleep(2)
